@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Find model and set other parameters -->
+  <arg name="model" default="$(find launch_config)/urdf/mallard_main_001_SIM.xacro"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="true"/>
+  <arg name="gz" default="true"/>
+  <arg name="headless" default="false"/>
+  <arg name="debug" default="false"/>
+
+  <arg name="vehicle_name" default="bluerov" />
+    <!-- Vehicle spawn position so that tags are seen -->
+  <!-- <arg name="x" default="0.7" />
+  <arg name="y" default="2.0" />
+  <arg name="z" default="-0.7" />
+  <arg name="P" default="0.0" />
+  <arg name="R" default="0.0" />
+  <arg name="Y" default="1.57" /> -->
+  <arg name="x" default="0" />
+  <arg name="y" default="-1.3" />
+  <arg name="z" default="-0.7" />
+  <arg name="P" default="0.0" />
+  <arg name="R" default="0.0" />
+  <arg name="Y" default="1.57" />
+  <arg name="camera" default="true" />
+
+  <!-- Gazebo world with desired characteristics as world_name -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="gui" value="$(arg gz)" />
+    <arg name="paused" value="false"/>
+    <arg name="world_name" value="$(find launch_config)/world/pond_w_floor.world"/>
+  </include>
+
+  <!-- Robot generation in Gazebo. Must be in the same name space for plugin to work -->
+  <group ns="mallard">
+    <param name="robot_description" command="$(find xacro)/xacro $(arg model)"/>
+      <!-- <arg name="camera" value="$(arg camera)" /> -->
+    <node name="spawner" pkg="gazebo_ros" type="spawn_model" respawn="false" output="screen"
+          args="-urdf -model mallard -param robot_description -x 0 -y -1.3 -z 0 -R 0 -P 0 -Y 1.57" />
+    <!-- Thrusters control -->
+    <!-- Load controller configurations (vehicle and arm) from YAML file to parameter server -->
+    <rosparam file="$(find launch_config)/cfg/yaml/vectored_mallard.yaml" command="load"/>
+    <node name="Virtual_tether" pkg="visual_virtual_tether" type="virtual_tether_old.py"/>
+    <node name="mallard_to_twist" pkg="visual_virtual_tether" type="obj_to_cmdvel_mall_old.py"/>
+        
+    <group ns="thrusters">
+        <param name="robot_description" command="$(find xacro)/xacro $(find launch_config)/urdf/control_thrusters.urdf"/>
+    </group>
+    
+    <node pkg="robot_state_publisher" type="robot_state_publisher"  name="robot_state_publisher"/>
+  </group>
+
+  <group ns="$(arg vehicle_name)">
+        <include file="$(find bluerov_sim)/launch/spawn_vehicle.launch">
+            <arg name="camera" value="$(arg camera)" />
+            <arg name="x" value="$(arg x)" />
+            <arg name="y" value="$(arg y)" />
+            <arg name="z" value="$(arg z)" />
+            <arg name="R" default="$(arg R)" />
+            <arg name="P" default="$(arg P)" />
+            <arg name="Y" default="$(arg Y)" />
+        </include>
+        <node name="Virtual_tether" pkg="visual_virtual_tether" type="virtual_tether_old.py"/>
+        <node name="bluerov_to_twist" pkg="visual_virtual_tether" type="obj_to_twist_bluerov_old.py"/>
+        <!-- <node name="keyboard" pkg="bluerov_sim" type="keyboard_control.py" output="screen" /> -->
+        <node name="mixer" pkg="bluerov_sim" type="mixer_joy.py" />
+        <node name="Joy2cmd" pkg="bluerov_sim" type="bluerov_joy2mixer.py" />
+        <!-- <node name="Joy2cmd" pkg="bluerov_sim" type="bluerov_path2mixer.py" /> -->
+        <node pkg="joy" type="joy_node" name="joy">
+              <param name="joy_node/dev" value="/dev/input/js" />
+              <param name="coalesce_interval" type="double" value="0.05" />
+              <!-- <param name="autorepeat_rate" type="double" value="20" /> -->
+        </node>
+  </group>
+
+
+ </launch>
